@@ -17,7 +17,7 @@ The final data model is structured as a **Star Schema** and is designed to suppo
 The pipeline follows the modern Medallion Architecture pattern to ensure data quality and modularity, processing data through three distinct layers.
 
 ![Data Pipeline Architecture](Data%20Pipline.jpg)
-*(Make sure the image file `Data Pipline.jpg` is in the root of your repository)*
+
 
 * **Bronze Layer (Raw Data):** Data is ingested "as-is" from the source PostgreSQL databases using Apache Sqoop and stored in HDFS. This layer serves as a historical archive of the raw source data.
 * **Silver Layer (Cleansed & Conformed Data):** Apache Spark jobs read the raw data from the Bronze layer, apply cleaning and standardization rules, handle data quality issues, and conform the data from different sources. The result is stored as queryable, structured tables in Apache Hive.
