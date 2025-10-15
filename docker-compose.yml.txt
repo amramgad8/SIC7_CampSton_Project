@@ -1,0 +1,94 @@
+# docker-compose.yml
+# This file sets up the entire data engineering environment needed for the project.
+
+version: '3.7'
+
+services:
+  # PostgreSQL Database (Our Data Source)
+  postgres:
+    image: postgres:13
+    container_name: postgres_source
+    ports:
+      - "5433:5432" # Expose on port 5433 to avoid conflicts
+    environment:
+      - POSTGRES_USER=user_de
+      - POSTGRES_PASSWORD=password123
+      - POSTGRES_DB=project_db
+    volumes:
+      - ./source_data:/docker-entrypoint-initdb.d/ # Mounts SQL scripts to auto-run on startup
+    networks:
+      - data_pipeline_net
+
+  # Hadoop Namenode (HDFS Master)
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    ports:
+      - "9870:9870"
+      - "9000:9000"
+    volumes:
+      - hadoop_namenode:/hadoop/dfs/name
+    environment:
+      - CLUSTER_NAME=test
+    networks:
+      - data_pipeline_net
+
+  # Hadoop Datanode (HDFS Worker)
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode
+    depends_on:
+      - namenode
+    volumes:
+      - hadoop_datanode:/hadoop/dfs/data
+    networks:
+      - data_pipeline_net
+      
+  # Spark Master
+  spark-master:
+    image: bde2020/spark-master:3.1.1-hadoop3.2
+    container_name: spark-master
+    ports:
+      - "8080:8080"
+      - "7077:7077"
+    depends_on:
+      - namenode
+      - datanode
+    volumes:
+      - ./spark_jobs:/app/spark_jobs # Mount our Spark jobs into the container
+      - ./data_ingestion:/app/data_ingestion # Mount our ingestion script
+    environment:
+      - INIT_DAEMON_STEP=setup_spark
+      - HADOOP_USER_NAME=root
+    networks:
+      - data_pipeline_net
+
+  # Hive Metastore Database (uses PostgreSQL)
+  hive-metastore-db:
+    image: bde2020/hive-metastore-postgresql:2.3.0
+    container_name: hive-metastore-db
+    networks:
+      - data_pipeline_net
+
+  # Hive Server (The main Hive service)
+  hive-server:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name: hive-server
+    depends_on:
+      - hive-metastore-db
+      - namenode
+      - datanode
+    ports:
+      - "10000:10000" # Port for clients like DBeaver or Python
+    environment:
+      - HIVE_CORE_CONF_javax_jdo_option_ConnectionURL=jdbc:postgresql://hive-metastore-db/metastore
+    networks:
+      - data_pipeline_net
+
+volumes:
+  hadoop_namenode:
+  hadoop_datanode:
+
+networks:
+  data_pipeline_net:
+    driver: bridge
